@@ -93,6 +93,9 @@ a{color:var(--pen-blue)}
 .app{max-width:1360px;margin:0 auto;display:grid;gap:22px;padding-block:24px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 @media (min-width:900px){.app{padding-block:34px 56px;padding-left:max(36px,env(safe-area-inset-left,0px));padding-right:max(36px,env(safe-area-inset-right,0px))}}
 .app.is-saving{cursor:progress}
+/* The single column may never grow past the screen, or phones zoom the whole page out to fit it. */
+.app{grid-template-columns:minmax(0,1fr)}
+.masthead,.actions{min-width:0}
 
 .fam-core{--tab:var(--t-core);--tab-ink:var(--i-core)}
 .fam-lang{--tab:var(--t-lang);--tab-ink:var(--i-lang)}
@@ -137,7 +140,7 @@ a{color:var(--pen-blue)}
 .search{display:flex;align-items:center;gap:8px;width:min(100%,250px);height:42px;border-bottom:1.5px solid var(--ink-3);color:var(--ink-2);transition:border-color .2s}
 .search:focus-within{border-color:var(--pen-blue);color:var(--pen-blue)}
 .search svg{width:18px;height:18px;flex:none}
-.search input{flex:1;min-width:0;height:100%;border:0;background:transparent;color:var(--ink);font:400 16px var(--f-body);outline:none;padding:0}
+.search input{flex:1;width:0;min-width:0;height:100%;border:0;background:transparent;color:var(--ink);font:400 16px var(--f-body);outline:none;padding:0}
 .search input::placeholder{color:var(--ink-3)}
 .search input::-webkit-search-cancel-button{display:none}
 .tool{position:relative;display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 2px;border:0;background:none;color:var(--ink);font:600 15px var(--f-body);text-decoration:none;cursor:pointer;white-space:nowrap}
@@ -207,16 +210,10 @@ a{color:var(--pen-blue)}
 .today-btn{padding:6px 10px;border:0;background:none;color:var(--pen-red);font:700 19px var(--f-hand);cursor:pointer;transform:rotate(-4deg);transition:transform .2s}
 .today-btn:hover{transform:rotate(-1deg) scale(1.08)}
 .today-btn.is-here{visibility:hidden}
-.progress{display:flex;align-items:center;gap:14px}
-.pen-bar{width:140px;height:16px;overflow:visible}
-.pb-track,.pb-ink{fill:none;stroke-width:5;stroke-linecap:round}
-.pb-track{stroke:var(--rule)}
-.pb-ink{stroke:var(--pen-blue);stroke-dasharray:100;stroke-dashoffset:100;transition:stroke-dashoffset .7s cubic-bezier(.3,.7,.2,1),stroke .3s}
-.progress.complete .pb-ink{stroke:var(--done-green)}
-.pr-text{display:grid}
-#pr-count{font:700 20px/1.1 var(--f-hand)}
-#pr-label{font-size:13px;color:var(--ink-2)}
-.progress.complete #pr-count{color:var(--done-green)}
+.summary{display:grid;justify-items:end;text-align:right}
+#sum-count{font:700 20px/1.1 var(--f-hand)}
+#sum-label{font-size:13px;color:var(--ink-2)}
+.narrow-label{display:none}
 .margin-notes{display:grid;gap:6px;padding:12px 22px 0}
 .margin-notes:empty{display:none}
 .pen-note{margin:0;font:400 18px/1.35 var(--f-hand);color:var(--pen-red)}
@@ -266,14 +263,9 @@ a{color:var(--pen-blue)}
 .group-label.soft{color:var(--ink-2);font-weight:400}
 
 /* ---------- entries written on the lines ---------- */
-.entry{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr);align-items:start}
-.tick{display:grid;place-items:center;width:28px;height:var(--row);padding:0;border:0;background:none;color:var(--ink-2);cursor:pointer}
-.tick svg{width:21px;height:21px;overflow:visible;transition:transform .15s}
-.tick:hover svg{transform:rotate(-6deg) scale(1.08)}
-.tick:active svg{transform:scale(.82)}
+.entry{position:relative;display:block}
 .box{fill:none;stroke:currentColor;stroke-width:1.7;stroke-linejoin:round}
 .mark{fill:none;stroke:var(--pen-blue);stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:100;stroke-dashoffset:100;transition:stroke-dashoffset .32s cubic-bezier(.5,.1,.3,1)}
-.entry.done .mark{stroke-dashoffset:0}
 .entry-open{display:block;min-width:0;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;border-radius:4px}
 .entry-line{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:8px;min-height:var(--row);line-height:var(--row)}
 .tab{display:inline-block;align-self:center;height:19px;padding:0 6px;border-radius:5px 5px 2px 2px;background:var(--tab);color:var(--tab-ink);font:700 11px/19px var(--f-body);letter-spacing:.05em;white-space:nowrap}
@@ -281,8 +273,6 @@ a{color:var(--pen-blue)}
 .entry-open:hover .entry-title{color:var(--pen-blue)}
 .ink{--strike:0%;--mark:0%;background-image:linear-gradient(var(--ink),var(--ink)),linear-gradient(var(--hl),var(--hl));background-repeat:no-repeat;background-size:var(--strike) 2px,var(--mark) 42%;background-position:0 60%,0 92%;-webkit-box-decoration-break:clone;box-decoration-break:clone;transition:--strike .38s cubic-bezier(.5,.1,.3,1)}
 .important .ink{--mark:100%}
-.done .ink{--strike:100%}
-.done .entry-title,.done .entry-notes,.done .entry-meta{color:var(--ink-3)}
 .pen{display:inline-block;font:700 16px/var(--row) var(--f-hand);color:var(--pen-red);transform:rotate(-3deg)}
 .entry-meta{font-size:13px;line-height:var(--row);color:var(--ink-2)}
 .entry-notes{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:14px;line-height:var(--row);color:var(--ink-2);overflow-wrap:anywhere}
@@ -326,11 +316,9 @@ a{color:var(--pen-blue)}
 .m-item i{flex:none;width:8px;height:8px;border-radius:2px;background:var(--tab-ink)}
 .m-item span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 15px/1.35 var(--f-hand)}
 .m-item.imp span{background:linear-gradient(transparent 58%,var(--hl) 58%,var(--hl) 92%,transparent 92%)}
-.m-item.done span{text-decoration:line-through;color:var(--ink-3)}
 .m-more{font:700 14px var(--f-hand);color:var(--ink-3)}
 .m-dots{display:none;flex-wrap:wrap;gap:3px}
 .m-dots i{width:7px;height:7px;border-radius:2px;background:var(--tab-ink)}
-.m-dots i.done{opacity:.3}
 @media (max-width:760px){
   .calendar{margin:14px 10px 0}
   .m-cell{min-height:60px;padding:5px 4px}
@@ -363,7 +351,7 @@ a{color:var(--pen-blue)}
 dialog.sheet{width:min(660px,calc(100vw - 32px));max-height:min(92dvh,920px);padding:0;border:0;border-radius:6px;background:var(--paper);color:var(--ink);box-shadow:0 36px 90px -24px rgba(0,0,0,.55);overflow:hidden}
 dialog.sheet.narrow{width:min(470px,calc(100vw - 32px))}
 dialog.sheet[open]{display:flex;flex-direction:column;animation:sheet-in .45s cubic-bezier(.2,.85,.25,1.15)}
-dialog.sheet::backdrop{background:rgba(8,12,22,.42);backdrop-filter:blur(2px)}
+dialog.sheet::backdrop{background:rgba(8,12,22,.5)}
 .dlg{display:flex;flex-direction:column;flex:1;min-height:0}
 .dlg-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 22px 6px}
 .dlg-head h2{margin:0;font-family:var(--f-display);font-weight:800;font-stretch:120%;font-size:26px;line-height:1.05}
@@ -506,7 +494,7 @@ textarea.lined:focus{box-shadow:none}
 
 /* ---------- motion ---------- */
 @keyframes draw{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
-@keyframes settle{from{transform:translateY(18px);opacity:0}to{transform:none;opacity:1}}
+@keyframes settle{from{transform:translateY(14px)}to{transform:none}}
 @keyframes drop{from{transform:translateY(-34px) rotate(calc(var(--r) * -3)) scale(1.04);opacity:0}to{transform:rotate(var(--r));opacity:1}}
 @keyframes write{from{opacity:0;transform:translateX(-8px);clip-path:inset(0 100% 0 0)}to{opacity:1;transform:none;clip-path:inset(0 0 0 0)}}
 @keyframes mark{from{--mark:0%}to{--mark:100%}}
@@ -558,7 +546,6 @@ dialog.sheet[open].closing::backdrop{animation:backdrop-out .22s ease-in forward
 .lv.off{opacity:0;transform:translateX(12px) scale(.9);visibility:hidden;transition:opacity .18s ease,transform .2s ease,visibility 0s linear .2s}
 .s-row .s-name{color:var(--ink-2);transition:color .25s}
 .s-row.picked .s-name{color:var(--ink)}
-.d-done.is-done .mark{stroke-dashoffset:0}
 
 /* who wrote it, and what changed since you last looked */
 .entry-by{font:400 15px/var(--row) var(--f-hand);color:var(--ink-3);white-space:nowrap}
@@ -582,6 +569,41 @@ dialog.sheet[open].closing::backdrop{animation:backdrop-out .22s ease-in forward
 .v-diff{font-size:13.5px;color:var(--ink);overflow-wrap:anywhere}
 .v-item .tool{justify-self:start;height:auto;padding:2px 0;font:700 16px var(--f-hand);color:var(--pen-blue)}
 @media (max-width:600px){.versions{margin-left:16px;margin-right:16px}}
+
+/* ---------- phones: balanced. Comfortable text, and the agenda starts on the first screen ---------- */
+@media (max-width:600px){
+  .app{gap:14px;padding-block:14px 104px}
+  .masthead{gap:10px}
+  .wm-class{font-size:31px}
+  .wm-script{font-size:34px}
+  .tagline{display:none}
+  .actions{width:100%;flex-wrap:nowrap;justify-content:flex-start;gap:0 16px}
+  .search{flex:1;width:auto;min-width:0;height:42px}
+  .tool .wide-label{display:none}
+  .tool .narrow-label{display:inline}
+  .upnext{gap:14px;padding:12px 4px 8px}
+  .sticky{flex:0 0 60%;min-height:0;padding:18px 14px 12px;gap:3px}
+  .sticky-count{font-size:22px}
+  .sticky-sub{font-size:12px}
+  .sticky-title{font-size:17px;line-height:1.2}
+  .sticky-when{font-size:12px}
+  .tape{top:-8px;width:58px;height:18px}
+  .tabs{padding:0 8px}
+  .tab-btn{padding:9px 15px 8px;font-size:14.5px}
+  .nb-bar{padding:10px 10px 12px;gap:6px 10px}
+  .arrow{width:40px;height:40px}
+  .arrow svg{width:24px;height:24px}
+  .pl-main{font-size:22px}
+  .pl-sub{margin-top:2px;font-size:13px}
+  .today-btn{padding:4px 6px;font-size:17px}
+  .summary{width:100%;grid-auto-flow:column;justify-content:center;align-items:baseline;gap:10px}
+  #sum-count{font-size:18px}
+  #sum-label{font-size:13px}
+  .margin-notes{gap:4px;padding:8px 14px 0}
+  .pen-note{font-size:16.5px}
+  .day.is-empty{min-height:calc(var(--row) * 2)}
+  .day.is-empty .dnum{font-size:22px}
+}
 
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.001ms!important}

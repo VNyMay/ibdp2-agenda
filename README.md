@@ -6,7 +6,8 @@ A shared class planner: homework, tests, deadlines, events and reminders, laid o
 - **Up next:** sticky notes count down to the next tests, deadlines, events and important entries.
 - **Entries:** each one can have a time, a place, an end date for multi-day things like trips, notes with links, HL/SL only, and an "important" flag.
 - **Calendar export:** tap an entry for its details and **Add to Google Calendar**, or download it for any calendar app (.ics).
-- **Personal:** ticks and "my subjects" (with HL/SL) are saved only on each person's own device.
+- **Personal:** "my subjects" (with HL/SL) and the theme are saved only on each person's own device.
+- **Who did what:** every entry shows who added or last edited it, its details list every version with "bring back this version", and entries changed since your last visit say "new" or "edited".
 - **Accountability:** anyone with the link can **read** it. To **write**, people enter their name and the class code once. Their name shows on what they add, every change is listed under **History of changes**, and deleted entries can be brought back.
 - **Phones:** on a phone, **Share → Add to Home Screen** makes it open like an app.
 

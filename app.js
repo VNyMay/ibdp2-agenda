@@ -77,7 +77,6 @@
   const RING = '<svg viewBox="0 0 100 50" preserveAspectRatio="none" aria-hidden="true"><path pathLength="100" d="M14 31C7 17 31 6 58 7c27 1 40 11 37 23-3 12-31 17-55 15C17 43 4 35 10 22c3-6 11-11 19-13"/></svg>';
   const TICK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="box" d="M4.6 5.3c4.6-.6 9.4-.7 14.6-.3.4 4.7.3 9.6-.1 14.4-4.8.4-9.7.4-14.5-.1-.4-4.6-.4-9.4 0-14z"/><path class="mark" pathLength="100" d="M6.8 12.6c1.3 1.4 2.6 2.9 3.8 4.4 2.9-4.6 6.3-9.3 10.6-13.6"/></svg>';
   const STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l2.6 5.6 6 .7-4.5 4.1 1.2 6-5.3-3-5.3 3 1.2-6L3.4 9.5l6-.7z"/></svg>';
-  const PEN_PATH = 'M3 9C30 5 60 12 90 7s35 3 47 1';
   const CHEV = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5c2.4 2.2 4.6 4.3 6.6 6.5-2 2.2-4.2 4.3-6.6 6.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const SHARE_ICON = icon('M15.8 6.8c-3 1.5-5.8 3.2-8.4 5.2 2.6 1.9 5.4 3.6 8.4 5.2M18 4.2a2 2 0 1 1-.1 4 2 2 0 0 1 .1-4zM18 15.8a2 2 0 1 1-.1 4 2 2 0 0 1 .1-4zM6 10a2 2 0 1 1-.1 4 2 2 0 0 1 .1-4z');
 
@@ -98,8 +97,8 @@
       '<p class="tagline">Everything the class has coming up: homework, tests, deadlines, events and reminders.</p></div>' +
       '<div class="actions">' +
         '<label class="search" for="search">' + I.search + '<input id="search" type="search" placeholder="Search the agenda" autocomplete="off" enterkeyhint="search"></label>' +
-        '<button type="button" class="tool" id="btn-copy">' + I.copy + '<span>Copy for chat</span></button>' +
-        '<button type="button" class="tool" id="btn-subjects">' + I.filter + '<span>My subjects</span></button>' +
+        '<button type="button" class="tool" id="btn-copy" aria-label="Copy for chat">' + I.copy + '<span class="wide-label">Copy for chat</span><span class="narrow-label">Copy</span></button>' +
+        '<button type="button" class="tool" id="btn-subjects" aria-label="My subjects">' + I.filter + '<span class="wide-label">My subjects</span><span class="narrow-label">Subjects</span></button>' +
         '<button type="button" class="pen-btn" id="btn-add">' + I.plus + '<span>Add to agenda</span></button>' +
       '</div>' +
     '</header>' +
@@ -119,8 +118,7 @@
             '<button type="button" class="arrow" id="next">' + I.right + '</button>' +
             '<button type="button" class="today-btn" id="btn-today">today</button>' +
           '</div>' +
-          '<div class="progress" id="progress"><svg class="pen-bar" viewBox="0 0 140 16" aria-hidden="true"><path class="pb-track" pathLength="100" d="' + PEN_PATH + '"/><path class="pb-ink" id="pb-ink" pathLength="100" d="' + PEN_PATH + '"/></svg>' +
-            '<span class="pr-text"><b id="pr-count"></b><span id="pr-label"></span></span></div>' +
+          '<div class="summary" id="summary" aria-live="polite"><b id="sum-count"></b><span id="sum-label"></span></div>' +
         '</div>' +
         '<div class="margin-notes" id="notes"></div>' +
         '<main id="main" class="main"></main>' +
@@ -485,7 +483,6 @@
     const ed = m.editor && typeof m.editor === 'object' && typeof m.editor.name === 'string' && m.editor.name ? { name: m.editor.name.slice(0, 40), code: String(m.editor.code || '') } : null;
     return {
       picks: picks,
-      done: m.done && typeof m.done === 'object' && !Array.isArray(m.done) ? m.done : {},
       view: VIEWS.indexOf(m.view) >= 0 ? m.view : 'week',
       nudged: !!m.nudged,
       editor: ed,
@@ -495,13 +492,6 @@
     };
   }
   function saveMe() { try { localStorage.setItem(ME_KEY, JSON.stringify(me)); } catch (e) {} }
-  function pruneDone() {
-    const ids = Object.create(null);
-    data.items.forEach(function (t) { ids[t.id] = true; });
-    Object.keys(me.done).forEach(function (k) { if (!ids[k]) delete me.done[k]; });
-    saveMe();
-  }
-  function isDone(t) { return hasOwn(me.done, t.id); }
   function isMine(t) {
     if (!me.picks || t.subject === 'class') return true;
     if (!hasOwn(me.picks, t.subject)) return false;
@@ -524,7 +514,6 @@
   let showAll = false;
   let searchQ = '';
   let focusDay = null;
-  let openIds = [];
   let saving = false;
   let loaded = false;
   let loadError = false;
@@ -555,7 +544,7 @@
     return [today, '9999-12-31'];
   }
   function periodItems() {
-    if (view === 'upcoming') return data.items.filter(function (t) { return lastDay(t) >= today || openIds.indexOf(t.id) >= 0; });
+    if (view === 'upcoming') return data.items.filter(function (t) { return lastDay(t) >= today; });
     const r = periodRange();
     return data.items.filter(function (t) { return overlaps(t, r[0], r[1]); });
   }
@@ -603,7 +592,7 @@
       main.className = 'main' + animClass(anim);
       buildMain(main);
     }
-    renderProgress();
+    renderSummary();
     renderFoot();
     if (focusDay) {
       const el = main.querySelector('[data-date="' + focusDay + '"]');
@@ -736,11 +725,9 @@
   }
   function entryRow(it, opt) {
     opt = opt || {};
-    const s = subj(it.subject), done = isDone(it), meta = metaFor(it, opt), fresh = freshness(it);
+    const s = subj(it.subject), meta = metaFor(it, opt), fresh = freshness(it);
     const byText = it.updatedBy ? 'edited by ' + it.updatedBy : it.by ? 'by ' + it.by : '';
-    const row = h('article', { class: 'entry fam-' + s.fam + ' k-' + it.kind + (done ? ' done' : '') + (it.important ? ' important' : ''), 'data-id': it.id, style: '--i:' + Math.min(seq++, 16) });
-    const tick = h('button', { type: 'button', class: 'tick', role: 'checkbox', 'aria-checked': String(done), 'aria-label': 'Done: ' + it.title, html: TICK });
-    tick.addEventListener('click', function () { toggleDone(it.id); });
+    const row = h('article', { class: 'entry fam-' + s.fam + ' k-' + it.kind + (it.important ? ' important' : ''), 'data-id': it.id, style: '--i:' + Math.min(seq++, 16) });
     const open = h('button', { type: 'button', class: 'entry-open', 'aria-label': s.short + ', ' + KINDS[it.kind] + ': ' + it.title + (meta ? ', ' + meta : '') + '. Open details' },
       h('span', { class: 'entry-line' },
         h('span', { class: 'tab', title: s.name, text: s.code }),
@@ -751,14 +738,14 @@
         byText ? h('span', { class: 'entry-by', text: byText }) : null),
       it.notes ? h('span', { class: 'entry-notes', text: it.notes }) : null);
     open.addEventListener('click', function () { openDetail(it.id); });
-    row.append(tick, open);
+    row.append(open);
     return row;
   }
 
   function dayBand(d) {
     const key = ymd(d), isToday = key === today, past = key < today, isTomorrow = key === ymd(addDays(parse(today), 1));
     const list = data.items.filter(function (it) { return onDay(it, key) && isShown(it); }).sort(sortDay);
-    const band = h('section', { class: 'day' + (isToday ? ' is-today' : '') + (past ? ' is-past' : ''), 'data-date': key, 'aria-label': fmtDay(d) });
+    const band = h('section', { class: 'day' + (isToday ? ' is-today' : '') + (past ? ' is-past' : '') + (list.length ? '' : ' is-empty'), 'data-date': key, 'aria-label': fmtDay(d) });
     band.append(h('div', { class: 'margin' },
       h('span', { class: 'dow', text: DOW[d.getDay()] + (d.getDate() === 1 ? ' ' + MON[d.getMonth()] : '') }),
       h('span', { class: 'dnum', html: String(d.getDate()) + (isToday ? CIRCLE : '') }),
@@ -799,7 +786,7 @@
       cell.append(h('span', { class: 'm-num', html: String(d.getDate()) + (key === today ? CIRCLE : '') }));
       const items = h('span', { class: 'm-items' }), dots = h('span', { class: 'm-dots', 'aria-hidden': 'true' });
       list.forEach(function (t, j) {
-        const s = subj(t.subject), cls = 'fam-' + s.fam + (isDone(t) ? ' done' : '') + (t.important ? ' imp' : '');
+        const s = subj(t.subject), cls = 'fam-' + s.fam + (t.important ? ' imp' : '');
         if (j < 3) items.append(h('span', { class: 'm-item ' + cls, 'data-id': t.id }, h('i'), h('span', { text: t.title })));
         dots.append(h('i', { class: cls, 'data-id': t.id }));
       });
@@ -841,15 +828,11 @@
 
   function renderUpcoming(main) {
     const page = h('div', { class: 'page list-page' });
-    const from = ymd(addDays(parse(today), -21));
-    const open = data.items.filter(function (it) { return (it.kind === 'hw' || it.kind === 'deadline') && lastDay(it) < today && lastDay(it) >= from && !isDone(it) && isShown(it); }).sort(byStart);
-    openIds = open.map(function (t) { return t.id; });
-    if (open.length) page.append(listBand(null, open, { label: 'still open: past due and not ticked yet', showDate: true }));
     const future = data.items.filter(function (it) { return lastDay(it) >= today && isShown(it); });
     groupByDay(future, function (it) { return it.start < today ? today : it.start; }).forEach(function (g) {
       page.append(listBand(g.key, g.items, { label: dateLabel(g.key) }));
     });
-    if (!open.length && !future.length) {
+    if (!future.length) {
       page.append(h('div', { class: 'blank' }, h('p', { class: 'blank-title', text: 'Nothing coming up' }),
         h('p', { text: canEdit() ? 'When something gets set, add it here and the whole class will see it.' : 'When classmates add something, it will show up here.' })));
     }
@@ -899,34 +882,18 @@
     });
   }
 
-  // ---------- progress: a pen line that fills ----------
-  function renderProgress() {
-    const prog = $('#progress');
-    prog.hidden = !!searchQ;
-    const items = loaded && !searchQ ? periodItems().filter(isShown) : [];
-    const n = items.length, k = items.filter(isDone).length;
-    $('#pb-ink').style.strokeDashoffset = String(n ? 100 - (k / n) * 100 : 100);
-    $('#pr-count').textContent = !loaded ? '' : !n ? 'nothing on' : k === n ? 'all done!' : k + ' of ' + n + ' done';
-    $('#pr-label').textContent = !loaded ? '' : (n && k === n ? k + ' of ' + n + ', ' : '') + periodWord() + (me.picks && !showAll ? ', your subjects' : '');
-    prog.classList.toggle('complete', n > 0 && k === n);
-  }
-
-  function toggleDone(id) {
-    if (hasOwn(me.done, id)) delete me.done[id];
-    else me.done[id] = 1;
-    saveMe();
-    const on = hasOwn(me.done, id);
-    document.querySelectorAll('[data-id="' + CSS.escape(id) + '"]').forEach(function (el) {
-      el.classList.toggle('done', on);
-      const c = el.querySelector('.tick');
-      if (c) c.setAttribute('aria-checked', String(on));
+  // ---------- summary: what's on in this period ----------
+  function renderSummary() {
+    const box = $('#summary');
+    box.hidden = !!searchQ || !loaded;
+    if (box.hidden) return;
+    const items = periodItems().filter(isShown), n = items.length, parts = [];
+    [['test', 'test', 'tests'], ['deadline', 'deadline', 'deadlines'], ['event', 'event', 'events']].forEach(function (k) {
+      const c = items.filter(function (t) { return t.kind === k[0]; }).length;
+      if (c) parts.push(c + ' ' + (c === 1 ? k[1] : k[2]));
     });
-    if (detailId === id && $('#detail').open) {
-      const t = $('#d-title'), b = $('#d-done');
-      if (t) t.classList.toggle('done', on);
-      if (b) { b.classList.toggle('is-done', on); b.querySelector('span').textContent = on ? 'Done. Undo' : 'Mark as done'; }
-    }
-    renderProgress();
+    $('#sum-count').textContent = (n ? n + (n === 1 ? ' thing ' : ' things ') : 'nothing on ') + periodWord();
+    $('#sum-label').textContent = (parts.length ? parts.join(' · ') : n ? 'no tests or deadlines' : 'enjoy it') + (me.picks && !showAll ? ' · your subjects' : '');
   }
 
   function renderFoot() {
@@ -971,10 +938,10 @@
     const box = $('#d-body');
     box.textContent = '';
     if (!it) { closeDialog($('#detail')); return; }
-    const s = subj(it.subject), done = isDone(it);
+    const s = subj(it.subject);
     box.append(h('div', { class: 'd-top fam-' + s.fam }, h('span', { class: 'tab', text: s.code }), h('span', { class: 'pen', text: KINDS[it.kind].toLowerCase() }), h('span', { class: 'grow' }),
       h('button', { type: 'button', class: 'x-btn', 'data-close': true, 'aria-label': 'Close', html: I.close })));
-    box.append(h('h2', { class: 'd-title' + (it.important ? ' important' : '') + (done ? ' done' : ''), id: 'd-title' }, h('span', { class: 'ink', text: it.title })));
+    box.append(h('h2', { class: 'd-title' + (it.important ? ' important' : ''), id: 'd-title' }, h('span', { class: 'ink', text: it.title })));
     const facts = h('div', { class: 'd-facts' });
     const fact = function (label, value) { facts.append(h('div', { class: 'd-fact' }, h('b', { text: label }), h('span', { text: value }))); };
     fact('Subject', s.name);
@@ -991,7 +958,6 @@
     box.append(versionsBlock(it));
     const gcal = h('a', { class: 'tool', href: gcalUrl(it), target: '_blank', rel: 'noopener noreferrer', html: I.cal + '<span>Google Calendar</span>' });
     box.append(h('div', { class: 'd-actions' },
-      h('button', { type: 'button', class: 'tool d-done' + (done ? ' is-done' : ''), id: 'd-done', html: TICK + '<span>' + (done ? 'Done. Undo' : 'Mark as done') + '</span>', onclick: function () { toggleDone(it.id); } }),
       gcal,
       h('button', { type: 'button', class: 'tool', html: I.download + '<span>Other calendars (.ics)</span>', onclick: function () { downloadIcs(it); } }),
       h('button', { type: 'button', class: 'tool', html: I.copy + '<span>Copy</span>', onclick: function () { copyText(itemText(it), 'Copied. Paste it anywhere.'); } }),
@@ -1310,7 +1276,6 @@
       const wasLoaded = loaded;
       loaded = true;
       loadError = false;
-      pruneDone();
       if (!seenSaved) { seenSaved = true; me.seenAt = new Date().toISOString(); saveMe(); }
       render(first || !wasLoaded ? 'load' : 'soft');
       if (detailId && $('#detail').open) renderDetail(findItem(detailId));
@@ -1801,16 +1766,17 @@
       else if (e.key === '/') { e.preventDefault(); $('#search').focus(); }
     });
     const main = $('#main');
-    let sx = null, sy = 0;
+    // Only a quick, clearly sideways swipe turns the page, so scrolling never turns it by accident.
+    let sx = null, sy = 0, st = 0;
     main.addEventListener('touchstart', function (e) {
       if (e.touches.length !== 1) { sx = null; return; }
-      sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now();
     }, { passive: true });
     main.addEventListener('touchend', function (e) {
       if (sx === null) return;
       const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
       sx = null;
-      if (Math.abs(dx) > 70 && Math.abs(dy) < 45) shift(dx < 0 ? 1 : -1);
+      if (Math.abs(dx) > 90 && Math.abs(dx) > Math.abs(dy) * 2.5 && Date.now() - st < 600) shift(dx < 0 ? 1 : -1);
     }, { passive: true });
     window.addEventListener('hashchange', function () {
       const v = (location.hash || '').slice(1);
