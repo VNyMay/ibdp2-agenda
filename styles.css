@@ -127,8 +127,8 @@ a{color:var(--pen-blue)}
 .sw-white i{background:#FFFFFF}
 .sw-blue i{background:#6271BB}
 .swatch svg{position:absolute;left:1px;top:3px;width:34px;height:30px;overflow:visible;pointer-events:none}
-.swatch path{fill:none;stroke:var(--desk-underline);stroke-width:2;stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:100;vector-effect:non-scaling-stroke;transition:stroke-dashoffset .45s cubic-bezier(.5,.1,.3,1)}
-.swatch[aria-pressed="true"] path{stroke-dashoffset:0}
+.swatch path{fill:none;stroke:var(--desk-underline);stroke-width:2;stroke-linecap:round;stroke-dasharray:100 400;stroke-dashoffset:100;opacity:0;vector-effect:non-scaling-stroke;transition:stroke-dashoffset .45s cubic-bezier(.5,.1,.3,1),opacity .15s ease}
+.swatch[aria-pressed="true"] path{stroke-dashoffset:0;opacity:1;transition:stroke-dashoffset .45s cubic-bezier(.5,.1,.3,1),opacity 0s}
 .tabs .themes{margin-left:auto;align-self:center;padding-bottom:4px}
 .foot .themes{display:none}
 @media (max-width:600px){.tabs .themes{display:none}.foot .themes{display:flex}}
@@ -397,13 +397,15 @@ textarea.lined:focus{box-shadow:none}
 .choice span{position:relative;display:inline-block;padding:5px 10px;font:400 19px/1.25 var(--f-hand);color:var(--ink-2);white-space:nowrap;pointer-events:none;transition:color .15s}
 .choice:hover span{color:var(--ink)}
 .choice svg,.circ-btn svg{position:absolute;left:-3px;top:-3px;width:calc(100% + 6px);height:calc(100% + 6px);overflow:visible;pointer-events:none}
-.choice path,.circ-btn path{fill:none;stroke:var(--pen-red);stroke-width:2;stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:100;vector-effect:non-scaling-stroke;transition:stroke-dashoffset .4s cubic-bezier(.5,.1,.3,1)}
+/* Circles stretch to fit the word, and a stretched dash can leave a stub behind when "un-drawn".
+   So an unselected circle also fades out completely; selecting still draws it in with the pen. */
+.choice path,.circ-btn path{fill:none;stroke:var(--pen-red);stroke-width:2;stroke-linecap:round;stroke-dasharray:100 400;stroke-dashoffset:100;opacity:0;vector-effect:non-scaling-stroke;transition:stroke-dashoffset .4s cubic-bezier(.5,.1,.3,1),opacity .15s ease}
 .choice input:checked+span{color:var(--ink);font-weight:700}
-.choice input:checked+span path{stroke-dashoffset:0}
+.choice input:checked+span path{stroke-dashoffset:0;opacity:1;transition:stroke-dashoffset .4s cubic-bezier(.5,.1,.3,1),opacity 0s}
 .choice input:focus-visible+span{outline:2px solid var(--focus);outline-offset:2px;border-radius:8px}
 .circ-btn{position:relative;padding:4px 9px;border:0;background:none;color:var(--ink-2);font:400 18px/1.25 var(--f-hand);cursor:pointer}
 .circ-btn[aria-pressed="true"]{color:var(--ink);font-weight:700}
-.circ-btn[aria-pressed="true"] path{stroke-dashoffset:0}
+.circ-btn[aria-pressed="true"] path{stroke-dashoffset:0;opacity:1;transition:stroke-dashoffset .4s cubic-bezier(.5,.1,.3,1),opacity 0s}
 
 /* subject index tabs */
 .tab-pick{display:flex;flex-wrap:wrap;gap:6px 6px}
