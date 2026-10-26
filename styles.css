@@ -555,6 +555,29 @@ dialog.sheet[open].closing::backdrop{animation:backdrop-out .22s ease-in forward
 .s-row.picked .s-name{color:var(--ink)}
 .d-done.is-done .mark{stroke-dashoffset:0}
 
+/* who wrote it, and what changed since you last looked */
+.entry-by{font:400 15px/var(--row) var(--f-hand);color:var(--ink-3);white-space:nowrap}
+.pen.fresh{color:var(--done-green);animation:pop-in .5s .6s cubic-bezier(.2,.8,.2,1.4) both}
+
+/* one entry's versions: a little timeline */
+.versions{margin:16px 22px 0;padding-top:12px;border-top:1.5px dashed var(--rule)}
+.versions summary{display:flex;align-items:center;gap:8px;list-style:none;cursor:pointer;font:700 18px var(--f-hand);color:var(--pen-blue)}
+.versions summary::-webkit-details-marker{display:none}
+.versions[open] .chev{transform:rotate(90deg)}
+.v-count{font-weight:400;color:var(--ink-3)}
+.vlist{list-style:none;display:grid;gap:12px;margin:12px 0 4px;padding:0 0 0 18px;border-left:2px solid var(--rule)}
+.v-item{position:relative;display:grid;gap:2px;animation:write .4s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0) * 45ms)}
+.v-item::before{content:"";position:absolute;left:-25px;top:6px;width:12px;height:12px;border-radius:50%;background:var(--paper);box-shadow:inset 0 0 0 2px var(--ink-3)}
+.v-item.current::before{background:var(--pen-blue);box-shadow:0 0 0 3px color-mix(in oklab,var(--pen-blue) 25%,transparent)}
+.v-item.gone::before{box-shadow:inset 0 0 0 2px var(--pen-red)}
+.v-line{font-size:14.5px}
+.v-line b{font:700 18px var(--f-hand)}
+.v-now{margin-left:8px;font:700 15px var(--f-hand);color:var(--done-green)}
+.v-meta{font-size:12.5px;color:var(--ink-2)}
+.v-diff{font-size:13.5px;color:var(--ink);overflow-wrap:anywhere}
+.v-item .tool{justify-self:start;height:auto;padding:2px 0;font:700 16px var(--f-hand);color:var(--pen-blue)}
+@media (max-width:600px){.versions{margin-left:16px;margin-right:16px}}
+
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
 }

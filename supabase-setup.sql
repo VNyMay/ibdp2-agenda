@@ -49,9 +49,12 @@ create table if not exists public.items (
   level text not null default '' check (level in ('', 'HL', 'SL')),
   important boolean not null default false,
   added_by text not null default '' check (char_length(added_by) <= 40),
+  updated_by text not null default '' check (char_length(updated_by) <= 40),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- For databases set up before "edited by" existed.
+alter table public.items add column if not exists updated_by text not null default '' check (char_length(updated_by) <= 40);
 create index if not exists items_start_idx on public.items (start_date);
 
 -- Every change is written here, so the class can see who did what and undo deletes.
@@ -187,6 +190,7 @@ begin
       place = btrim(coalesce(p_place, '')),
       level = coalesce(p_level, ''),
       important = coalesce(p_important, false),
+      updated_by = left(btrim(coalesce(p_by, '')), 40),
       updated_at = now()
   where id = p_id
   returning * into t;
@@ -237,7 +241,7 @@ begin
   if exists (select 1 from public.items where id = c.item_id) then
     raise exception 'already_restored';
   end if;
-  insert into public.items (id, subject, kind, title, notes, start_date, end_date, at_time, place, level, important, added_by, created_at)
+  insert into public.items (id, subject, kind, title, notes, start_date, end_date, at_time, place, level, important, added_by, updated_by, created_at)
   values (
     c.item_id,
     c.detail ->> 'subject',
@@ -251,6 +255,7 @@ begin
     coalesce(c.detail ->> 'level', ''),
     coalesce((c.detail ->> 'important')::boolean, false),
     coalesce(c.detail ->> 'added_by', ''),
+    left(btrim(coalesce(p_by, '')), 40),
     coalesce((c.detail ->> 'created_at')::timestamptz, now())
   )
   returning * into t;

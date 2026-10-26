@@ -302,7 +302,7 @@
     if (!window.supabase || !window.supabase.createClient) {
       // The database library didn't load (offline, or the CDN is blocked): show the connection error, never preview data.
       const no = function () { return Promise.reject(fail('offline')); };
-      return { live: true, load: no, history: no, checkCode: no, addItem: no, updateItem: no, deleteItem: no, restoreItem: no, addSubject: no, subscribe: function (a, onStatus) { onStatus(false); } };
+      return { live: true, load: no, history: no, itemHistory: no, checkCode: no, addItem: no, updateItem: no, deleteItem: no, restoreItem: no, addSubject: no, subscribe: function (a, onStatus) { onStatus(false); } };
     }
     const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
@@ -341,6 +341,11 @@
       },
       history: async function (n) {
         const res = await sb.from('changes').select('*').order('at', { ascending: false }).limit(n);
+        if (res.error) throw toErr(res.error);
+        return res.data;
+      },
+      itemHistory: async function (id) {
+        const res = await sb.from('changes').select('*').eq('item_id', id).order('at', { ascending: false }).order('id', { ascending: false }).limit(40);
         if (res.error) throw toErr(res.error);
         return res.data;
       },
@@ -385,10 +390,11 @@
       live: false,
       load: function () { return soon({ subjects: db.subjects, items: db.items }); },
       history: function (n) { return soon(db.changes.slice(0, n)); },
+      itemHistory: function (id) { return soon(db.changes.filter(function (x) { return x.item_id === id; }).slice(0, 40)); },
       checkCode: function () { return soon(true); },
       addItem: function (code, f, by) {
         const now = new Date().toISOString();
-        const t = Object.assign({ id: uuid(), added_by: by, created_at: now, updated_at: now }, row(f));
+        const t = Object.assign({ id: uuid(), added_by: by, updated_by: '', created_at: now, updated_at: now }, row(f));
         db.items.push(t); log('add', by, t.id, t); save();
         return soon(t);
       },
@@ -396,7 +402,7 @@
         const i = db.items.findIndex(function (t) { return t.id === id; });
         if (i < 0) return Promise.reject(fail('not_found'));
         const before = db.items[i];
-        const after = Object.assign({}, before, row(f), { updated_at: new Date().toISOString() });
+        const after = Object.assign({}, before, row(f), { updated_by: by, updated_at: new Date().toISOString() });
         db.items[i] = after; log('edit', by, id, { before: before, after: after }); save();
         return soon(after);
       },
@@ -410,7 +416,10 @@
         const c = db.changes.find(function (x) { return x.id === changeId && x.action === 'delete'; });
         if (!c) return Promise.reject(fail('not_found'));
         if (db.items.some(function (t) { return t.id === c.item_id; })) return Promise.reject(fail('already_restored'));
-        const t = clone(c.detail); db.items.push(t); log('restore', by, t.id, t); save();
+        const t = clone(c.detail);
+        t.updated_by = by;
+        t.updated_at = new Date().toISOString();
+        db.items.push(t); log('restore', by, t.id, t); save();
         return soon(t);
       },
       addSubject: function (code, s, by) {
@@ -442,6 +451,7 @@
       level: r.level === 'HL' || r.level === 'SL' ? r.level : '',
       important: r.important === true,
       by: str(r.added_by, 40),
+      updatedBy: str(r.updated_by, 40),
       created: r.created_at || null,
       updated: r.updated_at || null
     };
@@ -477,7 +487,8 @@
       view: VIEWS.indexOf(m.view) >= 0 ? m.view : 'week',
       nudged: !!m.nudged,
       editor: ed,
-      lastName: typeof m.lastName === 'string' ? m.lastName.slice(0, 40) : ''
+      lastName: typeof m.lastName === 'string' ? m.lastName.slice(0, 40) : '',
+      seenAt: typeof m.seenAt === 'string' ? m.seenAt : null
     };
   }
   function saveMe() { try { localStorage.setItem(ME_KEY, JSON.stringify(me)); } catch (e) {} }
@@ -524,6 +535,11 @@
   let lastRefresh = 0;
   let compItem = null;
   let prevStickies = null;
+  // When this device last opened the agenda, so entries added or changed since then can say so.
+  const prevSeen = me.seenAt;
+  let seenSaved = false;
+  let versionsToken = 0;
+  let versionsOpen = false;
   let detailId = null;
   let unlockThen = null;
   const hv = (location.hash || '').slice(1);
@@ -706,9 +722,19 @@
     return parts.join(' · ');
   }
 
+  // "new" or "edited" if someone else changed it since this device last opened the agenda.
+  function freshness(it) {
+    if (!prevSeen) return '';
+    const seen = Date.parse(prevSeen), c = Date.parse(it.created || ''), u = Date.parse(it.updated || '');
+    const mine = me.editor ? me.editor.name : '';
+    if (c > seen && !(mine && it.by === mine)) return 'new';
+    if (u > seen && u - c > 60000 && !(mine && it.updatedBy === mine)) return 'edited';
+    return '';
+  }
   function entryRow(it, opt) {
     opt = opt || {};
-    const s = subj(it.subject), done = isDone(it), meta = metaFor(it, opt);
+    const s = subj(it.subject), done = isDone(it), meta = metaFor(it, opt), fresh = freshness(it);
+    const byText = it.updatedBy ? 'edited by ' + it.updatedBy : it.by ? 'by ' + it.by : '';
     const row = h('article', { class: 'entry fam-' + s.fam + ' k-' + it.kind + (done ? ' done' : '') + (it.important ? ' important' : ''), 'data-id': it.id, style: '--i:' + Math.min(seq++, 16) });
     const tick = h('button', { type: 'button', class: 'tick', role: 'checkbox', 'aria-checked': String(done), 'aria-label': 'Done: ' + it.title, html: TICK });
     tick.addEventListener('click', function () { toggleDone(it.id); });
@@ -717,7 +743,9 @@
         h('span', { class: 'tab', title: s.name, text: s.code }),
         h('span', { class: 'entry-title' }, h('span', { class: 'ink', text: it.title })),
         it.kind !== 'hw' ? h('span', { class: 'pen', text: KINDS[it.kind].toLowerCase() }) : null,
-        meta ? h('span', { class: 'entry-meta', text: meta }) : null),
+        meta ? h('span', { class: 'entry-meta', text: meta }) : null,
+        fresh ? h('span', { class: 'pen fresh', text: fresh }) : null,
+        byText ? h('span', { class: 'entry-by', text: byText }) : null),
       it.notes ? h('span', { class: 'entry-notes', text: it.notes }) : null);
     open.addEventListener('click', function () { openDetail(it.id); });
     row.append(tick, open);
@@ -931,6 +959,7 @@
   function openDetail(id) {
     const it = findItem(id);
     if (!it) return;
+    if (detailId !== id) versionsOpen = false;
     detailId = id;
     renderDetail(it);
     openDialog($('#detail'));
@@ -953,9 +982,10 @@
     box.append(facts);
     if (it.notes) box.append(h('div', { class: 'd-notes' }, linkify(it.notes)));
     const by = [];
-    if (it.by) by.push('added by ' + it.by + (it.created ? ', ' + ago(it.created) : ''));
-    if (it.updated && it.created && Date.parse(it.updated) - Date.parse(it.created) > 60000) by.push('edited ' + ago(it.updated));
+    if (it.by || it.created) by.push('added' + (it.by ? ' by ' + it.by : '') + (it.created ? ', ' + ago(it.created) : ''));
+    if (it.updatedBy || (it.updated && it.created && Date.parse(it.updated) - Date.parse(it.created) > 60000)) by.push('edited' + (it.updatedBy ? ' by ' + it.updatedBy : '') + (it.updated ? ', ' + ago(it.updated) : ''));
     if (by.length) box.append(h('p', { class: 'd-by', text: by.join(' · ') }));
+    box.append(versionsBlock(it));
     const gcal = h('a', { class: 'tool', href: gcalUrl(it), target: '_blank', rel: 'noopener noreferrer', html: I.cal + '<span>Google Calendar</span>' });
     box.append(h('div', { class: 'd-actions' },
       h('button', { type: 'button', class: 'tool d-done' + (done ? ' is-done' : ''), id: 'd-done', html: TICK + '<span>' + (done ? 'Done. Undo' : 'Mark as done') + '</span>', onclick: function () { toggleDone(it.id); } }),
@@ -963,6 +993,85 @@
       h('button', { type: 'button', class: 'tool', html: I.download + '<span>Other calendars (.ics)</span>', onclick: function () { downloadIcs(it); } }),
       h('button', { type: 'button', class: 'tool', html: I.copy + '<span>Copy</span>', onclick: function () { copyText(itemText(it), 'Copied. Paste it anywhere.'); } }),
       h('button', { type: 'button', class: 'pen-btn', html: I.pencil + '<span>Edit</span>', onclick: function () { closeDialog($('#detail')); openComposer({ item: it }); } })));
+  }
+
+  // ---------- version history of one entry ----------
+  const FIELDS = [['title', 'title'], ['notes', 'notes'], ['subject', 'subject'], ['kind', 'type'], ['start_date', 'date'], ['end_date', 'until'], ['at_time', 'time'], ['place', 'place'], ['level', 'who it’s for'], ['important', 'important']];
+  function fv(x) { return x === null || x === undefined ? '' : String(x); }
+  function describeEdit(before, after) {
+    const parts = [];
+    FIELDS.forEach(function (f) {
+      const a = fv(before[f[0]]), b = fv(after[f[0]]);
+      if (a === b) return;
+      if (f[0] === 'title') parts.push('title “' + a + '” → “' + b + '”');
+      else if (f[0] === 'start_date' && isDate(a) && isDate(b)) parts.push('date ' + fmtShort(parse(a)) + ' → ' + fmtShort(parse(b)));
+      else if (f[0] === 'subject') parts.push('subject ' + subj(a).code + ' → ' + subj(b).code);
+      else if (f[0] === 'important') parts.push(b === 'true' ? 'marked it important' : 'unmarked important');
+      else parts.push(f[1]);
+    });
+    return parts.length ? 'changed ' + parts.join(', ') : 'saved it without changes';
+  }
+  function versionsBlock(it) {
+    const det = h('details', { class: 'versions', id: 'd-versions' },
+      h('summary', { html: CHEV + 'History of this entry <span class="v-count" id="v-count"></span>' }),
+      h('ol', { class: 'vlist', id: 'v-list' }, h('li', { class: 'v-item', text: 'opening…' })));
+    if (versionsOpen) det.open = true;
+    det.addEventListener('toggle', function () { versionsOpen = det.open; });
+    animateDetails(det);
+    const token = ++versionsToken;
+    backend.itemHistory(it.id).then(function (rows) {
+      if (token === versionsToken) fillVersions(it, rows || []);
+    }, function () {
+      const l = $('#v-list');
+      if (token !== versionsToken || !l) return;
+      l.textContent = '';
+      l.append(h('li', { class: 'v-item', text: 'Couldn’t load the history. Check your connection.' }));
+    });
+    return det;
+  }
+  function fillVersions(it, rows) {
+    const list = $('#v-list'), count = $('#v-count');
+    if (!list) return;
+    list.textContent = '';
+    const states = rows.filter(function (r) { return r.action !== 'subject'; });
+    count.textContent = '(' + states.length + (states.length === 1 ? ' version)' : ' versions)');
+    if (!states.length) {
+      list.append(h('li', { class: 'v-item', text: 'Nothing recorded yet. This entry was here before the history started.' }));
+      return;
+    }
+    const VERB = { add: 'added it', edit: 'edited it', delete: 'deleted it', restore: 'brought it back' };
+    let currentShown = false;
+    states.forEach(function (r, i) {
+      const state = (r.action === 'edit' ? r.detail && r.detail.after : r.detail) || {};
+      const isCurrent = !currentShown && r.action !== 'delete';
+      if (isCurrent) currentShown = true;
+      const li = h('li', { class: 'v-item' + (isCurrent ? ' current' : '') + (r.action === 'delete' ? ' gone' : ''), style: '--i:' + Math.min(i, 12) },
+        h('div', { class: 'v-line' }, h('b', { text: r.who || 'Someone' }), ' ' + (VERB[r.action] || r.action), isCurrent ? h('span', { class: 'v-now', text: 'current' }) : null),
+        h('div', { class: 'v-meta', text: ago(r.at) + (state.title && r.action !== 'edit' ? ' · “' + state.title + '”' : '') }));
+      if (r.action === 'edit' && r.detail && r.detail.before) li.append(h('div', { class: 'v-diff', text: describeEdit(r.detail.before, state) }));
+      if (!isCurrent && r.action !== 'delete' && state.title) {
+        li.append(h('button', { type: 'button', class: 'tool', text: canEdit() ? 'bring back this version' : 'unlock to bring back this version', onclick: function () { restoreVersion(it, state); } }));
+      }
+      list.append(li);
+    });
+  }
+  function restoreVersion(it, state) {
+    if (!canEdit()) { closeDialog($('#detail')); openUnlock(function () { versionsOpen = true; openDetail(it.id); }); return; }
+    const f = {
+      subject: hasOwn(subjIndex, state.subject) ? state.subject : 'class',
+      kind: hasOwn(KINDS, state.kind) ? state.kind : 'hw',
+      title: String(state.title || it.title).slice(0, 120),
+      notes: String(state.notes || '').slice(0, 1000),
+      start: isDate(state.start_date) ? state.start_date : it.start,
+      end: isDate(state.end_date) && state.end_date > state.start_date ? state.end_date : '',
+      time: typeof state.at_time === 'string' && isTime(state.at_time.slice(0, 5)) ? state.at_time.slice(0, 5) : '',
+      place: String(state.place || '').slice(0, 80),
+      level: state.level === 'HL' || state.level === 'SL' ? state.level : '',
+      important: state.important === true
+    };
+    change(function (code, by) { return backend.updateItem(code, it.id, f, by); }).then(function (res) {
+      if (res) toast('That version is back, for everyone');
+    });
   }
 
   // ---------- calendar export ----------
@@ -1186,6 +1295,7 @@
       loaded = true;
       loadError = false;
       pruneDone();
+      if (!seenSaved) { seenSaved = true; me.seenAt = new Date().toISOString(); saveMe(); }
       render(first || !wasLoaded ? 'load' : 'soft');
       if (detailId && $('#detail').open) renderDetail(findItem(detailId));
       backend.history(1).then(function (rows) { lastChange = rows && rows[0] ? rows[0] : null; renderFoot(); }, function () {});
@@ -1561,7 +1671,8 @@
         const s = subj(d.subject);
         line.append(h('span', { class: 'tab fam-' + s.fam, text: s.code }), h('span', { class: 'hist-text', text: String(d.title || '') }));
       }
-      const meta = h('div', { class: 'hist-meta' }, h('span', { text: ago(r.at) + (r.action !== 'subject' && isDate(d.start_date) ? ' · for ' + fmtDay(parse(d.start_date)) : '') }));
+      const meta = h('div', { class: 'hist-meta' }, h('span', { text: ago(r.at) + (r.action !== 'subject' && isDate(d.start_date) ? ' · for ' + fmtDay(parse(d.start_date)) : '') }),
+        r.action === 'edit' && r.detail && r.detail.before ? h('span', { text: describeEdit(r.detail.before, d) }) : null);
       const gone = !data.items.some(function (t) { return t.id === String(r.item_id); });
       if (r.action === 'delete' && gone) {
         meta.append(h('button', {
