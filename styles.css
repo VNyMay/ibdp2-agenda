@@ -601,6 +601,7 @@ dialog.sheet[open].closing::backdrop{animation:backdrop-out .22s ease-in forward
   #sum-label{font-size:13px}
   .margin-notes{gap:4px;padding:8px 14px 0}
   .pen-note{font-size:16.5px}
+  .rel{font-size:14px}
   .day.is-empty{min-height:calc(var(--row) * 2)}
   .day.is-empty .dnum{font-size:22px}
 }
