@@ -22,7 +22,6 @@
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const DOW_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const KIND_EMOJI = { hw: '📚', test: '📝', deadline: '⏰', event: '📅', reminder: '🔔' };
   const STICKY_TILT = [-2.4, 1.8, -1.2, 2.6];
   const THEMES = [['classic', 'Classic (follows light or dark mode)'], ['white', 'White'], ['blue', 'Blue']];
   const THEME_DESK = { classic: '', white: '#F4F5F7', blue: '#6271BB' };
@@ -192,7 +191,10 @@
     '<dialog class="sheet" id="share" aria-labelledby="sh-title"><div class="dlg">' +
       '<div class="dlg-head"><h2 id="sh-title">Send to the group chat</h2>' + closeBtn() + '</div>' +
       '<div class="dlg-body">' +
-        '<fieldset><legend>What to send</legend><div class="choices" id="sh-range">' + choice('sh-range', 'week', 'this week') + choice('sh-range', 'next', 'next 2 weeks') + choice('sh-range', 'month', 'this month') + '</div></fieldset>' +
+        '<div class="two">' +
+          '<fieldset><legend>What to send</legend><div class="choices" id="sh-range">' + choice('sh-range', 'week', 'this week') + choice('sh-range', 'next', 'next 2 weeks') + choice('sh-range', 'month', 'this month') + '</div></fieldset>' +
+          '<fieldset><legend>Style</legend><div class="choices" id="sh-style">' + choice('sh-style', 'short', 'short') + choice('sh-style', 'notes', 'with notes') + '</div></fieldset>' +
+        '</div>' +
         '<div class="chat" aria-label="Message preview"><div class="bubble" id="sh-bubble"><div id="sh-preview"></div><span class="bubble-meta" id="sh-meta">now <b>✓</b></span></div></div>' +
         '<textarea id="sh-text" rows="8" readonly hidden></textarea>' +
         '<p class="hint-line" id="sh-hint" hidden>Copying straight to the clipboard was blocked here. The message is selected above, so copy it with your keyboard or a long press.</p>' +
@@ -488,7 +490,8 @@
       nudged: !!m.nudged,
       editor: ed,
       lastName: typeof m.lastName === 'string' ? m.lastName.slice(0, 40) : '',
-      seenAt: typeof m.seenAt === 'string' ? m.seenAt : null
+      seenAt: typeof m.seenAt === 'string' ? m.seenAt : null,
+      shareStyle: m.shareStyle === 'notes' ? 'notes' : 'short'
     };
   }
   function saveMe() { try { localStorage.setItem(ME_KEY, JSON.stringify(me)); } catch (e) {} }
@@ -1153,58 +1156,68 @@
   }
 
   // ---------- copying ----------
-  // A message that reads well in WhatsApp: *bold*, _italic_, an emoji per type.
+  // The group-chat message: plain and scannable, the way a class rep would write it.
+  // One line per entry ("Physics test: Quiz (2:30 PM, Lab 2)"), grouped under bold day headings.
   function clean(s) { return String(s).replace(/[*~`]/g, '').replace(/\s+/g, ' ').trim(); }
-  function chatEntry(it) {
-    const s = subj(it.subject), IND = '      ';
-    const lines = [KIND_EMOJI[it.kind] + ' *' + clean(s.short) + (it.kind !== 'hw' ? ' ' + KINDS[it.kind].toLowerCase() : '') + '* · ' + clean(it.title).replace(/_/g, ' ') + (it.important ? ' ⭐' : '')];
-    const bits = [];
-    if (it.time) bits.push('🕒 ' + fmtTime(it.time));
-    if (it.place) bits.push('📍 ' + clean(it.place));
-    if (it.level) bits.push(it.level + ' only');
-    if (it.end) bits.push('until ' + fmtShort(parse(it.end)));
-    if (bits.length) lines.push(IND + bits.join(' · '));
-    if (it.notes) {
+  function chatEntry(it, withNotes) {
+    const s = subj(it.subject), kind = it.kind === 'hw' ? '' : KINDS[it.kind];
+    const lead = it.subject === 'class' ? kind : clean(s.short) + (kind ? ' ' + kind.toLowerCase() : '');
+    const extra = [];
+    if (it.important) extra.push('important');
+    if (it.time) extra.push(fmtTime(it.time));
+    if (it.place) extra.push(clean(it.place));
+    if (it.level) extra.push(it.level + ' only');
+    if (it.end) extra.push('until ' + fmtShort(parse(it.end)));
+    let line = '- ' + (lead ? lead + ': ' : '') + clean(it.title) + (extra.length ? ' (' + extra.join(', ') + ')' : '');
+    if (withNotes && it.notes) {
       let n = clean(it.notes);
-      if (n.length > 150) n = n.slice(0, 148) + '…';
-      lines.push(IND + (/https?:\/\//.test(n) ? n : '_' + n.replace(/_/g, ' ') + '_'));
+      if (n.length > 160) n = n.slice(0, 158) + '…';
+      line += '\n  ' + n;
     }
-    return lines.join('\n');
+    return line;
   }
+  // Within a day: tests and deadlines first, then homework, then reminders and events.
+  const CHAT_KIND_ORDER = { test: 0, deadline: 1, hw: 2, reminder: 3, event: 4 };
+  function chatOrder(a, b) { return CHAT_KIND_ORDER[a.kind] - CHAT_KIND_ORDER[b.kind] || sortDay(a, b); }
   function dayHeading(key) {
     const d = parse(key), rel = diffDays(today, key);
-    return '🗓️ *' + DOW_LONG[d.getDay()] + ' ' + d.getDate() + ' ' + MON[d.getMonth()] + '*' + (rel === 0 ? ' · _today_' : rel === 1 ? ' · _tomorrow_' : '');
+    return '*' + DOW[d.getDay()] + ', ' + fmtShort(d) + '*' + (rel === 0 ? ' (today)' : rel === 1 ? ' (tomorrow)' : '');
   }
   function shareRange(range) {
     if (range === 'week') {
       const s = mondayOf(parse(view === 'week' ? anchor : today));
-      return { r: [ymd(s), ymd(addDays(s, 6))], title: 'Week ' + isoWeek(s), sub: fmtShort(s) + ' to ' + fmtShort(addDays(s, 6)) };
+      return { r: [ymd(s), ymd(addDays(s, 6))], title: 'week ' + isoWeek(s), sub: fmtShort(s) + ' to ' + fmtShort(addDays(s, 6)) };
     }
     if (range === 'month') {
       const a = parse(view === 'month' ? anchor : today);
       return { r: [ymd(new Date(a.getFullYear(), a.getMonth(), 1)), ymd(new Date(a.getFullYear(), a.getMonth() + 1, 0))], title: MONTHS[a.getMonth()] + ' ' + a.getFullYear(), sub: '' };
     }
     const e = addDays(parse(today), 13);
-    return { r: [today, ymd(e)], title: 'The next two weeks', sub: fmtShort(parse(today)) + ' to ' + fmtShort(e) };
+    return { r: [today, ymd(e)], title: 'next two weeks', sub: fmtShort(parse(today)) + ' to ' + fmtShort(e) };
   }
-  function chatMessage(range) {
+  function chatMessage(range, withNotes) {
     const p = shareRange(range), r = p.r;
     const groups = groupByDay(data.items.filter(function (t) { return overlaps(t, r[0], r[1]); }), function (t) { return t.start < r[0] ? r[0] : t.start; });
-    const out = ['📒 *' + CLASS_NAME.toUpperCase() + ' AGENDA*', '_' + p.title + (p.sub ? ' · ' + p.sub : '') + '_'];
-    if (!groups.length) out.push('', 'Nothing on. Enjoy it 🌿');
+    const out = ['*' + CLASS_NAME + ' agenda, ' + p.title + '*'];
+    if (p.sub) out.push(p.sub);
+    if (!groups.length) out.push('', 'Nothing on.');
     groups.forEach(function (g) {
       out.push('', dayHeading(g.key));
-      g.items.forEach(function (it) { out.push(chatEntry(it)); });
+      g.items.slice().sort(chatOrder).forEach(function (it) { out.push(chatEntry(it, withNotes)); });
     });
-    if (siteUrl()) out.push('', '✅ Tick things off and see the rest:', siteUrl());
+    if (siteUrl()) out.push('', 'Full agenda: ' + siteUrl());
     return out.join('\n');
   }
-  function itemText(it) { return dayHeading(it.start) + '\n' + chatEntry(it) + (siteUrl() ? '\n\n' + siteUrl() : ''); }
+  function itemText(it) { return dayHeading(it.start) + '\n' + chatEntry(it, true) + (siteUrl() ? '\n\nFull agenda: ' + siteUrl() : ''); }
   // Shows the message the way a chat app would: bold, italics and the link.
   function chatPreview(text, box) {
     box.textContent = '';
-    text.split('\n').forEach(function (line) {
-      const row = h('div', { class: 'cl' });
+    text.split('\n').forEach(function (raw) {
+      // "- " lines show as bullets and indented lines as notes under them, as chat apps do.
+      let line = raw, cls = 'cl';
+      if (raw.indexOf('- ') === 0) { cls += ' li'; line = raw.slice(2); }
+      else if (raw.indexOf('  ') === 0 && raw.trim()) { cls += ' sub'; line = raw.trim(); }
+      const row = h('div', { class: cls });
       line.split(/(\*[^*\n]+\*|_[^_\n]+_)/g).forEach(function (part) {
         if (!part) return;
         if (/^\*[^*]+\*$/.test(part)) row.append(h('b', { text: part.slice(1, -1) }));
@@ -1222,12 +1235,15 @@
     $('label[for="sh-range-week"] span').firstChild.textContent = thisWk ? 'this week' : 'week ' + isoWeek(wk);
     $('label[for="sh-range-month"] span').firstChild.textContent = thisMo ? 'this month' : MONTHS[mo.getMonth()].toLowerCase();
     setRadio('sh-range', def);
+    setRadio('sh-style', me.shareStyle === 'notes' ? 'notes' : 'short');
     $('#sh-native').hidden = !navigator.share;
     updateShare(false);
     openDialog($('#share'));
   }
   function updateShare(animate) {
-    const text = chatMessage(radioVal('sh-range') || 'week');
+    const style = radioVal('sh-style') === 'notes' ? 'notes' : 'short';
+    if (me.shareStyle !== style) { me.shareStyle = style; saveMe(); }
+    const text = chatMessage(radioVal('sh-range') || 'week', style === 'notes');
     $('#sh-text').value = text;
     chatPreview(text, $('#sh-preview'));
     if (animate) { const p = $('#sh-preview'); p.classList.remove('pop-in'); void p.offsetWidth; p.classList.add('pop-in'); }
@@ -1726,6 +1742,7 @@
     document.title = CLASS_NAME + ' Agenda';
     $('#btn-copy').addEventListener('click', openShare);
     $('#sh-range').addEventListener('change', function () { updateShare(true); });
+    $('#sh-style').addEventListener('change', function () { updateShare(true); });
     $('#sh-copy').addEventListener('click', onShareCopy);
     $('#sh-native').addEventListener('click', function () { if (navigator.share) navigator.share({ text: $('#sh-text').value }).catch(function () {}); });
     animateDetails($('#s-add-wrap'));

@@ -475,6 +475,9 @@ textarea.lined:focus{box-shadow:none}
 .bubble::after{content:"";position:absolute;top:0;right:-8px;border-style:solid;border-width:0 0 12px 9px;border-color:transparent transparent transparent var(--paper)}
 .cl{min-height:1.45em;white-space:pre-wrap;overflow-wrap:anywhere}
 .cl b{font-weight:700}
+.cl.li{position:relative;padding-left:16px}
+.cl.li::before{content:"•";position:absolute;left:3px}
+.cl.sub{padding-left:16px;color:var(--ink-2)}
 .cl a{color:var(--pen-blue)}
 .bubble-meta{display:block;margin-top:2px;text-align:right;font-size:11px;color:var(--ink-3)}
 .bubble-meta b{margin-left:3px;letter-spacing:-.18em;font-weight:700;transition:color .3s}
