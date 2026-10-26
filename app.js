@@ -22,6 +22,9 @@
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const STICKY_TILT = [-2.4, 1.8, -1.2, 2.6];
+  const THEMES = [['classic', 'Classic (follows light or dark mode)'], ['white', 'White'], ['blue', 'Blue']];
+  const THEME_DESK = { classic: '', white: '#F4F5F7', blue: '#6271BB' };
+  const THEME_KEY = 'agenda:theme';
   const ME_KEY = 'agenda:' + CLASS_NAME + ':me:v2';
   const DEMO_KEY = 'agenda:' + CLASS_NAME + ':demo:v2';
 
@@ -80,6 +83,11 @@
     return '<label class="choice" for="' + id + '"><input type="radio" name="' + name + '" id="' + id + '" value="' + value + '"><span>' + label + RING + '</span></label>';
   }
   function closeBtn() { return '<button type="button" class="x-btn" data-close aria-label="Close">' + I.close + '</button>'; }
+  function themePicker() {
+    return '<div class="themes" role="group" aria-label="Theme"><span class="themes-label">theme</span>' + THEMES.map(function (t) {
+      return '<button type="button" class="swatch sw-' + t[0] + '" data-theme-pick="' + t[0] + '" title="' + t[1] + '" aria-label="' + t[1] + ' theme" aria-pressed="false"><i></i>' + RING + '</button>';
+    }).join('') + '</div>';
+  }
 
   const SHELL =
     '<header class="masthead">' +
@@ -98,6 +106,7 @@
         '<button type="button" class="tab-btn" role="tab" id="v-week">Week</button>' +
         '<button type="button" class="tab-btn" role="tab" id="v-month">Month</button>' +
         '<button type="button" class="tab-btn" role="tab" id="v-upcoming">Coming up</button>' +
+        themePicker() +
       '</div>' +
       '<div class="notebook">' +
         '<div class="nb-bar">' +
@@ -116,7 +125,7 @@
     '</div>' +
     '<footer class="foot">' +
       '<div class="foot-left"><span class="live-dot" id="live"></span><span id="foot-updated"></span></div>' +
-      '<div class="foot-right"><button type="button" class="tool" id="btn-history">History of changes</button><span id="foot-editor"></span></div>' +
+      '<div class="foot-right"><button type="button" class="tool" id="btn-history">History of changes</button><span id="foot-editor"></span>' + themePicker() + '</div>' +
     '</footer>' +
     '<button type="button" class="pen-btn fab" id="fab" aria-label="Add to agenda">' + I.plus + '</button>' +
     '<div class="toast" id="toast" role="status" aria-live="polite"></div>' +
@@ -1358,8 +1367,36 @@
     body.append(list);
   }
 
+  // ---------- themes (saved on this device) ----------
+  let themeTimer = null;
+  function currentTheme() {
+    const t = document.documentElement.getAttribute('data-theme');
+    return t === 'white' || t === 'blue' ? t : 'classic';
+  }
+  function applyTheme(t, animate) {
+    const root = document.documentElement;
+    if (animate) {
+      root.classList.add('theme-fade');
+      clearTimeout(themeTimer);
+      themeTimer = setTimeout(function () { root.classList.remove('theme-fade'); }, 650);
+    }
+    if (t === 'classic') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', t);
+    try { if (t === 'classic') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, t); } catch (e) {}
+    document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
+      if (!m.dataset.orig) m.dataset.orig = m.content;
+      m.content = THEME_DESK[t] || m.dataset.orig;
+    });
+    document.querySelectorAll('[data-theme-pick]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.themePick === t)); });
+  }
+
   // ---------- wiring ----------
   function wire() {
+    applyTheme(currentTheme(), false);
+    document.addEventListener('click', function (e) {
+      const b = e.target.closest('[data-theme-pick]');
+      if (b && b.dataset.themePick !== currentTheme()) applyTheme(b.dataset.themePick, true);
+    });
     $('#wm-class').textContent = CLASS_NAME;
     document.title = CLASS_NAME + ' Agenda';
     $('#btn-copy').addEventListener('click', function () { copyText(chatText(), 'Copied. Paste it in the group chat.'); });
